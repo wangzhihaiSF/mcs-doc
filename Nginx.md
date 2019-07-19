@@ -8,7 +8,7 @@ Keepalived是一个基于VRRP协议来实现的WEB 服务高可用方案，可�
 
 **ip 都是测试数据，真正的ip 需要替换**
 
-1. 准备编译环境
+### 准备编译环境
 
 正式开始前，编译环境gcc g++ 开发库之类的需要提前装好
 ```
@@ -20,7 +20,7 @@ yum install -y psmisc
 systemctl start keepalived.service
 systemctl enable keepalived.service
 ```
-2. 用来进行nginx是否存活的监测，并设置chmod +x check_nginx.sh
+### 用来进行nginx是否存活的监测，并设置chmod +x check_nginx.sh
 ```
 [root@lb-node1 ~]# vim /soft/scripts/check_nginx.sh
 #!/bin/bash
@@ -36,7 +36,7 @@ fi
 ```
 
 
-3. keepadlived主配置文件
+### keepadlived主配置文件
 ```
 [root@lb-node1 ~]# vim /etc/keepalived/keepalived.conf 
 ! Configuration File for keepalived
@@ -110,7 +110,7 @@ virtual_ipaddress {
 }
 ```
 
-4. 备机的配置文件与master区别：
+### 备机的配置文件与master区别：
 
 ```
 ......
@@ -125,7 +125,7 @@ state BACKUP    #主机为MASTER，备用机为BACKUP
 priority 100
 ```
 
-5. ip漂移测试
+### ip漂移测试
 
 ```
 // ip漂移测试
