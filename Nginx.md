@@ -200,6 +200,8 @@ priority 100
 ```
 ### Keepalived配置文件详解
 
+
+```
    inet 10.0.0.11/24 scope global secondary eth0
 
 [root@lb01 ~]# /etc/init.d/keepalived stop #停止Master上Keepalived
@@ -308,7 +310,8 @@ qVRRP定义块
 ### 测试验证Nginx、应用程序是否开机自启动，启动用户是否为非root用户验证
 
 进入安装nginx目录,启动nginx服务
-```
+
+
 cd /usr/local/sbin/
 ./nginx
 ```
