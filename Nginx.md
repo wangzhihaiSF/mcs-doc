@@ -318,7 +318,7 @@ cd /usr/local/sbin/
 ps aux | grep nginx
 ```
 <p>
-<img src="(https://images2018.cnblogs.com/blog/567946/201807/567946-20180721164822958-2075047104.png" >
+<img src="https://images2018.cnblogs.com/blog/567946/201807/567946-20180721164822958-2075047104.png" >
 </p>
 
 
