@@ -324,4 +324,111 @@ ps aux | grep nginx
 <img src="https://images2018.cnblogs.com/blog/567946/201807/567946-20180721164822958-2075047104.png" >
 </p>
 
+配置nginx开机自启动
+进入到/etc/init.d/目录下，创建文件nginx
+```
+cd /etc/init.d/
+vim nginx
+```
+nginx文件具体配置信息如下：
 
+```
+#!/bin/bash
+# nginx Startup script for the Nginx HTTP Server
+# it is v.0.0.2 version.
+# chkconfig: - 85 15
+# description: Nginx is a high-performance web and proxy server.
+#              It has a lot of features, but it's not for everyone.
+# processname: nginx
+# pidfile: /var/run/nginx.pid
+# config: /usr/local/nginx/conf/nginx.conf
+
+nginxd=/usr/local/nginx/sbin/nginx        # 你的nginx真实启动文件路径
+nginx_config=/usr/local/nginx/conf/nginx.conf    # nginx相关配置文件路径
+nginx_pid=/var/run/nginx.pid    
+RETVAL=0
+prog="nginx"
+# Source function library.
+. /etc/rc.d/init.d/functions
+# Source networking configuration.
+. /etc/sysconfig/network
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+[ -x $nginxd ] || exit 0
+# Start nginx daemons functions.
+start() {
+    if [ -e $nginx_pid ];then
+       echo "nginx already running...."
+   exit 1
+    fi
+       echo -n $"Starting $prog: "
+       daemon $nginxd -c ${nginx_config}
+   RETVAL=$?
+   echo
+       [ $RETVAL = 0 ] && touch /var/lock/subsys/nginx
+   return $RETVAL
+}
+
+# Stop nginx daemons functions.
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc $nginxd
+    RETVAL=$?
+    echo
+    [ $RETVAL = 0 ] && rm -f /var/lock/subsys/nginx /var/run/nginx.pid
+}
+
+# reload nginx service functions.
+reload() {
+    echo -n $"Reloading $prog: "
+    #kill -HUP `cat ${nginx_pid}`
+    killproc $nginxd -HUP
+    RETVAL=$?
+    echo
+}
+
+# See how we were called.
+    case "$1" in
+start)
+    start
+    ;;
+stop)
+    stop
+    ;;
+reload)
+    reload
+    ;;
+restart)
+    stop
+    start
+    ;;
+status)
+    status $prog
+    RETVAL=$?
+    ;;
+*)
+    echo $"Usage: $prog {start|stop|restart|reload|status|help}"
+    exit 1
+esac
+exit $RETVAL
+```
+
+保存nginx文件并赋权
+```
+chmod 755 nginx  
+```
+将nginx权限设置为自己可以read、write、exec，其他用户只能有read、exec权限，没有write权限
+
+为nginx加上service相关命令权限
+```
+chkconfig --add nginx
+chkconfig nginx on
+```
+开启nginx的service命令,校验nginx的service命令是否成功,service nginx start 执行不报错表示nginx已经启动
+
+<p>
+<img src="https://images2018.cnblogs.com/blog/567946/201807/567946-20180721163616536-1235232894.png" >
+</p>
+
+重启centos服务器再次验证是否nginx已经启动
+重启之前service nginx stop停止nginx服务，之后执行reboot，开机之后执行ps aux | grep nginx如果后台显示nginx已经启动，那么表示nginx的安装和开机自启动已经成功配置
