@@ -311,7 +311,7 @@ qVRRP定义块
 
 进入安装nginx目录,启动nginx服务
 
-
+```
 cd /usr/local/sbin/
 ./nginx
 ```
