@@ -432,3 +432,7 @@ chkconfig nginx on
 
 重启centos服务器再次验证是否nginx已经启动
 重启之前service nginx stop停止nginx服务，之后执行reboot，开机之后执行ps aux | grep nginx如果后台显示nginx已经启动，那么表示nginx的安装和开机自启动已经成功配置
+
+### nginx备份与恢复
+备份：复制安装目录下的nginx.conf配置文件及其使用include 加载的配置文件
+恢复：将备份的配置文件复制到新环境下的nginx的配置文件目录下，使用reload命令重新加载配置文件
