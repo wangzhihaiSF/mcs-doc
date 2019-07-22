@@ -20,7 +20,7 @@ yum install -y psmisc
 systemctl start keepalived.service
 systemctl enable keepalived.service
 ```
-### 用来进行nginx是否存活的监测，并设置chmod +x check_nginx.sh
+### 用来进行nginx是健康的监测，并设置chmod +x check_nginx.sh
 ```
 [root@lb-node1 ~]# vim /soft/scripts/check_nginx.sh
 #!/bin/bash
@@ -145,97 +145,177 @@ priority 100
 ```
 
 
+### 在两台Web Server上执行realserver.sh脚本，为lo:0绑定VIP地址192.168.1.100、抑制arp广播
 
-*创建文件keepalived.conf
 ```
-touch keepalived.conf
-```
-编辑keepalived.conf,添加如下内容:
-（1）172.16.21.23（主）
-```
-vrrp_script chk_mariadb {
-    script "/data/script/chk_mariadb.sh"
-    interval 2
-    weight 2
-}
-###########################################################
-# define  mariadb_01                                           #
-###########################################################
-vrrp_instance V_mariadb_01 {
-    interface eth0
-    state MASTER
-    priority 180
-    virtual_router_id 53
-    garp_master_delay 1
-
-
-    authentication {
-        auth_type PASS
-        auth_pass 111
-    }
-    track_interface {
-       eth0
-    }
-    virtual_ipaddress {
-        172.16.21.79   dev eth0 label eth0:1
-    }
-    track_script {
-        chk_mariadb
-    }
-}
+#!/bin/bash
+    #description: Config realserver
+    
+    VIP=192.168.1.100
+     
+    /etc/rc.d/init.d/functions
+     
+    case "$1" in
+    start)
+           /sbin/ifconfig lo:0 $VIP netmask 255.255.255.255 broadcast $VIP
+           /sbin/route add -host $VIP dev lo:0
+           echo "1" >/proc/sys/net/ipv4/conf/lo/arp_ignore
+           echo "2" >/proc/sys/net/ipv4/conf/lo/arp_announce
+           echo "1" >/proc/sys/net/ipv4/conf/all/arp_ignore
+           echo "2" >/proc/sys/net/ipv4/conf/all/arp_announce
+           sysctl -p >/dev/null 2>&1
+           echo "RealServer Start OK"
+           ;;
+    stop)
+           /sbin/ifconfig lo:0 down
+           /sbin/route del $VIP >/dev/null 2>&1
+           echo "0" >/proc/sys/net/ipv4/conf/lo/arp_ignore
+           echo "0" >/proc/sys/net/ipv4/conf/lo/arp_announce
+           echo "0" >/proc/sys/net/ipv4/conf/all/arp_ignore
+           echo "0" >/proc/sys/net/ipv4/conf/all/arp_announce
+           echo "RealServer Stoped"
+           ;;
+    *)
+           echo "Usage: $0 {start|stop}"
+           exit 1
+    esac
+     
+    exit 0
 ```
 
-（2）172.16.21.24（从）：
-```vrrp_script chk_mariadb {
-    script "/data/script/chk_mariadb.sh"
-    interval 2
-    weight 2
-}
+### 分别在主从机上执行 sh realserver.sh start 实现负载均衡及高可用集群
+
+
+```
+[root@lb-node1 /soft/scripts]# ip a |grep -E "lo|eth0"
+    1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+        link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+        inet 127.0.0.1/8 scope host lo
+        inet 192.168.1.100/32 brd 192.168.1.100 scope global lo:0
+    2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+        inet 192.168.1.10/24 brd 192.168.1.255 scope global noprefixroute eth0
+        inet 192.168.1.100/24 scope global secondary eth0
+        inet6 2409:8a28:8a8:e3c0:b6d2:ec3c:3557:2609/64 scope global noprefixroute dynamic 
+    [root@lb-node1 /soft/scripts]# 
+```
+### Keepalived配置文件详解
+
+   inet 10.0.0.11/24 scope global secondary eth0
+
+[root@lb01 ~]# /etc/init.d/keepalived stop #停止Master上Keepalived
+
+[root@lb01 ~]# ip addr|grep 10.0.0.11 #VIP已经从Master端移除
+
+
+[root@lb02 ~]# ip addr|grep 10.0.0.11 #Backup上Keepalived接管资源
+
+    inet 10.0.0.11/24 scope global secondary eth0   
+
+[root@lb01 ~]# /etc/init.d/keepalived start #启动Master_keepalived
+
+[root@lb01 ~]# ip addr|grep 10.0.0.11 #Master继续接管资源           
+
+    inet 10.0.0.11/24 scope global secondary eth0
+
+1.5.9Keepalived配置文件详解
+  1 ! Configuration File for keepalived #注释
+  2
+  3 global_defs {
+
+  4    notification_email {
+
+  5      acassen@firewall.loc #5-7发邮件给谁
+  6
+  7
+  8    }
+
+  9    notification_email_from Alexandre.Cassen@firewall.lo #发邮件发件人
+
+ 10    smtp_server 192.168.200.1 #邮件服务器地址
+
+ 11    smtp_connect_timeout 30 #超时时间
+
+ 12    router_id Nginx_01 #主备ID不能一样
+
+ 13 }
  
+ 14
  
-###########################################################
-# define  mariadb_02                                           #
-###########################################################
-vrrp_instance V_mariadb_02 {
-    interface eth0
-    state BACKUP
-    priority 150
-    virtual_router_id 53
-    garp_master_delay 1
- 
- 
-    authentication {
-        auth_type PASS
-        auth_pass 222
-    }
-    track_interface {
-       eth0
-    }
-    virtual_ipaddress {
-        172.16.21.79   dev eth0 label eth0:2
-    }
-    track_script {
-        chk_mariadb
-    }
-}
-```
+ 15  vrrp_instance VI_1 {  #实例名称(建议不修)
 
-**注：上面配置中提到的/data/script/chk_azkaban.sh需要独立建立(每台机器)，代码如下：**
-```
-#!/bin/bash 
-STATUS=`netstat -nptl | grep mysql | wc -l`  
-if [ "$STATUS" -eq "0" ]; then
-   killall keepalived 
-fi   
-```
+ 16     state MASTER #服务器的状态(仅仅是傀儡)
+
+ 17     interface eth0 #通信端口
+
+ 18     virtual_router_id 51 #实例的ID
+
+ 19     priority 150 #优先级，主备之间最好相差50
+
+ 20     advert_int 1 #心跳间隔（如果一秒没通信备节点马上接管）
+
+ 21     authentication {
+
+ 22         auth_type PASS #PASS认证类型，此参数备节点设置和主节点相同
+
+ 23         auth_pass 1111 #密码是1111，此参数备节点设置和主节点相同
+
+ 24     }
+
+ 25     virtual_ipaddress { #vip（可以多个）
+
+ 26       10.0.0.11/24 #26-28配置vIP地址，绑定在eth0  因为(interface eth0)
+
+ 29     }
+
+ 30 }
+ ```
 
 
-### nginx必须要双机 使用浮动ip
-安装和运行 keepalived 及安装 fuser
+q全局定义块部分：主要设置Keepalived的通知机制和标识
+
+1、第4-9行是email通知参数。作用：当LVS发生切换或RS等有故障时，会发邮件报警。这是可选配，notifucation_email指定在keepalived发生事件时，需要发给的email地址，可以有多个，每行一个。
+
+2、smtp_server指定发送邮件的smtp服务器，如果本机开启了sendmail，就可以使用上面默认配置实现邮件发送。
+
+3、第10行是Lvs负载均衡器标示（rote_id）。在一个局域网内，它应该是唯一的。
+
+4、大括号”{}” 用来分隔定义块，因此必须成对出现。如果漏写了，keepalived运行时，不会得到预期的结果。由于定义块内存在嵌套关系，因此很容易遗漏结尾处的花括号，这点要特别注意。
+
+
+qVRRP定义块
+
+1、第13行为VRRP实例vrrp_instance,每个Vrrp实例可以认为是一个keepalived实例，在配置中VRRP实例可以有多个。
+
+(1)第14行实例状态state.只有Master和Backup两种状态，并且需要大写这些单词。其中MASTER为工作状态。BACKUP为备用状态。当MASTER所在的服务器失效时，BACKUP所在的系统会自动把它的状态有BACKUP变换成MASTER，当失效的MASTER所在的系统恢复时，BACKUP从MASTER恢复到BACKUP状态。
+
+(2)通信接口interface。对外提供服务的网络结构，如eth0,eth1当前主流的服务器有2个或2个以上的网络接口，在选择服务器接口时，一定要搞清楚了。
+
+(3)lvs_sync_daemon_interface。负载均衡器之间的监控接口，类似于HA HeartBeat的心跳线。
+
+(4)第16行为虚拟路由标示virtual_route_id是一致的，同时在整个keepalived内是唯一的。
+
+(5)第17行为优先级priority，这是一个数字，数值愈大，优先级越高。在同一个vrrp_instance里，MASTER的优先级 BACKUP。若MASTER的priority值为150，那么BACKUP的priority只能在149或者跟小的数值(官方建议相差50)。
+
+(6)第18行同步通知间隔advert_int。MASTER与BACKUP负载均衡器之间同步检查的时间间隔，单位为秒。
+
+(7)第19-22行验证authentication.包含验证类型和验证密码。类型主要有PASS、AH两种,通常使用的类型为PASS,据说AH使用时有问题。验证密码为明文，同一vrrp实例MASTER与BACKUP使用相同的密码才能正常通信,这里官方推荐用明文即可。
+
+
+2、第23-27行为虚拟ip地址virtual_ipaddress。可以配置多个IP地址，每个地址占一行，需要指定子网掩码。
+
+注意：这个ip必须与我们在lvs客户端设定的vip相一致。
+
+### 测试验证Nginx、应用程序是否开机自启动，启动用户是否为非root用户验证
+
+进入安装nginx目录,启动nginx服务
+```
+cd /usr/local/sbin/
+./nginx
 ```
 
-[root@lb-node1 /]# yum install -y keepalived
-[root@lb-node1 /]# yum install -y psmisc
-[root@lb-node1 ~]# systemctl start keepalived.service
-[root@lb-node1 ~]# systemctl enable keepalived.service
+查看nginx应用启动详情
 ```
+ps aux | grep nginx
+```
+![avatar](https://images2018.cnblogs.com/blog/567946/201807/567946-20180721164822958-2075047104.png)
+
